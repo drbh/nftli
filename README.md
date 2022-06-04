@@ -2,6 +2,12 @@
 
 NFT's in your terminal.
 
+
+Quick install (coming soon)
+```
+https://i.drbh.xyz/ntfli! | bash 
+```
+
 **Features**  
 - [X] Get NFT's from source (ETH, IPFS...)
 - [X] Show collection information in console
