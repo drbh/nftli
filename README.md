@@ -5,7 +5,7 @@ NFT's in your terminal.
 
 Quick install (coming soon)
 ```
-https://i.drbh.xyz/ntfli! | bash 
+curl https://storage.googleapis.com/nftli-binary/binary.sh | bash
 ```
 
 **Features**  
