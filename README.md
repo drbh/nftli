@@ -3,13 +3,14 @@
 NFT's in your terminal.
 
 
-Quick install
+### Quick install
+
+[![Releases](https://img.shields.io/github/release/drbh/nftli.svg)](https://github.com/drbh/nftli/releases) [![Releases](https://img.shields.io/github/downloads/drbh/nftli/total.svg)](https://github.com/drbh/nftli/releases)
+
 ```bash
 curl https://storage.googleapis.com/nftli-binary/binary.sh | bash
-# Installing drbh/nftli v0.0.0.....
-# ######################################################################## 100.0%
-# Installed at /usr/local/bin/nftli
 ```
+See [the latest release](https://github.com/drbh/nftli/releases/latest)
 
 **Features**  
 - [X] Get NFT's from source (ETH, IPFS...)
