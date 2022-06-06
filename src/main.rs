@@ -17,6 +17,9 @@ const RPC_URL: &str = "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229edda
 struct Cli {
     #[clap(subcommand)]
     command: Commands,
+
+    #[clap(short, long, default_value_t = RPC_URL.to_string())]
+    rpc_url: String,
 }
 
 #[derive(Subcommand, Debug)]
@@ -301,7 +304,8 @@ impl Viewer {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
-    let client = Provider::<Http>::try_from(RPC_URL)?;
+
+    let client = Provider::<Http>::try_from(cli.rpc_url)?;
     let client = Arc::new(client);
 
     match &cli.command {
