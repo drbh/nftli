@@ -47,6 +47,9 @@ struct View {
 
     #[clap(short, long)]
     show: bool,
+
+    #[clap(long, default_value_t = 40)]
+    show_height: u64,
 }
 
 abigen!(
@@ -119,9 +122,12 @@ impl Nft {
 
         let v: Value = serde_json::from_str(&res)?;
 
-        let image_url = String::from(v["image"].as_str().unwrap());
+        let image_url = String::from(v["image"].as_str().unwrap_or_default());
 
-        let attributes = v["attributes"].as_array().unwrap();
+        let attributes: Vec<Value> = v["attributes"]
+            .as_array()
+            .unwrap_or(&Vec::default())
+            .to_vec();
 
         Ok(Nft {
             token_id: token_id.to_string(),
@@ -135,14 +141,17 @@ impl Nft {
 struct Img {}
 
 impl Img {
-    async fn new(attributes: Vec<Value>, image_url: String) -> Result<Self, Box<dyn Error>> {
+    async fn new(
+        attributes: Vec<Value>,
+        image_url: String,
+        show_height: u64,
+    ) -> Result<Self, Box<dyn Error>> {
         let conf = Config {
             // set offset
             x: 1,
             y: 36 + (attributes.len() as f32 * 1.4) as i16,
             // set dimensions
-            width: Some(80),
-            height: Some(40),
+            height: Some(show_height.try_into().unwrap_or(40)),
             ..Default::default()
         };
 
@@ -217,8 +226,9 @@ impl Viewer {
     async fn show(
         collection: Collection,
         nft: Option<Nft>,
-        address: Address,
+        address: String,
         show_image: bool,
+        show_height: u64,
     ) -> Result<(), Box<dyn Error>> {
         // clear terminal
         print!("{esc}[2J{esc}[1;1H", esc = 27 as char);
@@ -277,8 +287,8 @@ impl Viewer {
             let mut attrs = vec![];
 
             for attr in &nft.attributes {
-                let k = attr["trait_type"].as_str().unwrap();
-                let v = attr["value"].as_str().unwrap();
+                let k = attr["trait_type"].as_str().unwrap_or_default();
+                let v = attr["value"].as_str().unwrap_or_default();
                 attrs.push(vec![k.cell(), v.cell().justify(Justify::Right)])
             }
 
@@ -293,7 +303,7 @@ impl Viewer {
                 println!();
                 println!("{}", "→ Image".red().bold());
 
-                Img::new(nft.attributes, nft.image_url).await?;
+                Img::new(nft.attributes, nft.image_url, show_height).await?;
             }
         }
 
@@ -310,7 +320,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     match &cli.command {
         Commands::View(project) => {
-            let address = project.address.parse::<Address>().unwrap();
+            let address = project.address.parse::<Address>().unwrap_or_default();
 
             let pair = IERC721::new(address, Arc::clone(&client));
             let collection = Collection::new(&pair).await;
@@ -322,10 +332,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 nft = Some(Nft::new(&token_id, &pair).await?);
             };
 
-            Viewer::show(collection, nft, address, project.show).await?;
+            Viewer::show(
+                collection,
+                nft,
+                project.address.clone(),
+                project.show,
+                project.show_height,
+            )
+            .await?;
         }
         Commands::Download(project) => {
-            let address = project.address.parse::<Address>().unwrap();
+            let address = project.address.parse::<Address>().unwrap_or_default();
 
             let pair = IERC721::new(address, Arc::clone(&client));
             let collection = Collection::new(&pair).await;
