@@ -3,9 +3,12 @@
 NFT's in your terminal.
 
 
-Quick install (coming soon)
-```
+Quick install
+```bash
 curl https://storage.googleapis.com/nftli-binary/binary.sh | bash
+# Installing drbh/nftli v0.0.0.....
+# ######################################################################## 100.0%
+# Installed at /usr/local/bin/nftli
 ```
 
 **Features**  
