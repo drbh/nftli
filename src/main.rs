@@ -20,6 +20,9 @@ struct Cli {
 
     #[clap(short, long, default_value_t = RPC_URL.to_string())]
     rpc_url: String,
+
+    #[clap(short, long, default_value_t = IPFS_URI.to_string())]
+    ipfs_url: String,
 }
 
 #[derive(Subcommand, Debug)]
@@ -59,7 +62,6 @@ abigen!(
         function symbol() external view returns (string memory)
         function totalSupply() public view virtual override returns (uint256)
         function name() external view returns (string memory)
-
         function tokenURI(uint256 tokenId) public view virtual override returns (string memory)
     ]"#,
 );
@@ -72,9 +74,7 @@ struct Collection {
 }
 
 impl Collection {
-    async fn new(
-        pair: &ierc721_mod::IERC721<ethers::providers::Provider<ethers::providers::Http>>,
-    ) -> Self {
+    async fn new(pair: &IERC721<Provider<Http>>) -> Self {
         // collection
         let uri = pair.base_uri().call().await.unwrap_or_default();
         let symbol = pair.symbol().call().await.unwrap_or_default();
@@ -100,7 +100,8 @@ struct Nft {
 impl Nft {
     async fn new(
         token_id: &U256,
-        pair: &ierc721_mod::IERC721<ethers::providers::Provider<ethers::providers::Http>>,
+        pair: &IERC721<Provider<Http>>,
+        ipfs_url: &str,
     ) -> Result<Self, Box<dyn Error>> {
         let token_uri = pair.token_uri(*token_id).call().await.unwrap_or_default();
 
@@ -108,7 +109,7 @@ impl Nft {
         if token_uri.starts_with("ipfs://") {
             request_address = format!(
                 "{}{}",
-                IPFS_URI,
+                ipfs_url,
                 token_uri.chars().skip(7).collect::<String>()
             );
         }
@@ -145,13 +146,14 @@ impl Img {
         attributes: Vec<Value>,
         image_url: String,
         show_height: u64,
+        ipfs_url: &str,
     ) -> Result<Self, Box<dyn Error>> {
         let conf = Config {
             // set offset
             x: 1,
             y: 36 + (attributes.len() as f32 * 1.4) as i16,
             // set dimensions
-            height: Some(show_height.try_into().unwrap_or(40)),
+            height: Some(show_height.try_into().unwrap_or_default()),
             ..Default::default()
         };
 
@@ -159,7 +161,7 @@ impl Img {
         if image_url.starts_with("ipfs://") {
             image_request_address = format!(
                 "{}{}",
-                IPFS_URI,
+                ipfs_url,
                 image_url.chars().skip(7).collect::<String>()
             );
         }
@@ -179,12 +181,16 @@ impl Img {
 
         Ok(Img {})
     }
-    async fn save(path: &Path, image_url: String) -> Result<Self, Box<dyn Error>> {
+    async fn save(
+        path: &Path,
+        image_url: String,
+        ipfs_url: String,
+    ) -> Result<Self, Box<dyn Error>> {
         let mut image_request_address = image_url.clone();
         if image_url.starts_with("ipfs://") {
             image_request_address = format!(
                 "{}{}",
-                IPFS_URI,
+                ipfs_url,
                 image_url.chars().skip(7).collect::<String>()
             );
         }
@@ -209,13 +215,14 @@ impl Img {
 struct Viewer {}
 
 impl Viewer {
-    async fn save(address: &str, nft: Option<Nft>) -> Result<(), Box<dyn Error>> {
+    async fn save(address: &str, nft: Option<Nft>, ipfs_url: &str) -> Result<(), Box<dyn Error>> {
         // clear terminal
         if let Some(nft) = nft {
             fs::create_dir_all(&format!("{}/", address))?;
             Img::save(
                 Path::new(&format!("{}/{}.png", address, nft.token_id)),
                 nft.image_url,
+                ipfs_url.to_string(),
             )
             .await?;
         }
@@ -229,6 +236,7 @@ impl Viewer {
         address: String,
         show_image: bool,
         show_height: u64,
+        ipfs_url: &str,
     ) -> Result<(), Box<dyn Error>> {
         // clear terminal
         print!("{esc}[2J{esc}[1;1H", esc = 27 as char);
@@ -303,7 +311,7 @@ impl Viewer {
                 println!();
                 println!("{}", "→ Image".red().bold());
 
-                Img::new(nft.attributes, nft.image_url, show_height).await?;
+                Img::new(nft.attributes, nft.image_url, show_height, ipfs_url).await?;
             }
         }
 
@@ -329,7 +337,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             if let Some(token_id) = project.token_id {
                 let token_id = U256::from(token_id);
-                nft = Some(Nft::new(&token_id, &pair).await?);
+                nft = Some(Nft::new(&token_id, &pair, &cli.ipfs_url).await?);
             };
 
             Viewer::show(
@@ -338,6 +346,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 project.address.clone(),
                 project.show,
                 project.show_height,
+                &cli.ipfs_url,
             )
             .await?;
         }
@@ -351,8 +360,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             if let Some(token_id) = project.token_id {
                 let token_id = U256::from(token_id);
                 println!("Downloading:  {}", token_id.to_string().yellow());
-                let nft = Some(Nft::new(&token_id, &pair).await?);
-                Viewer::save(&project.address, nft).await?;
+                let nft = Some(Nft::new(&token_id, &pair, &cli.ipfs_url).await?);
+                Viewer::save(&project.address, nft, &cli.ipfs_url).await?;
             };
 
             // no token. download all of them
@@ -360,8 +369,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 for _token_id in 0..collection.total_supply.as_u64() {
                     let token_id = U256::from(_token_id);
                     println!("Downloading:  {}", token_id.to_string().yellow());
-                    let nft = Some(Nft::new(&token_id, &pair).await?);
-                    Viewer::save(&project.address, nft).await?;
+                    let nft = Some(Nft::new(&token_id, &pair, &cli.ipfs_url).await?);
+                    Viewer::save(&project.address, nft, &cli.ipfs_url).await?;
                 }
             }
         }
